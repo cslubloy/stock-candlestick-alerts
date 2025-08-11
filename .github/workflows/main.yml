@@ -1,0 +1,33 @@
+name: Reszvény gyertyajelző
+
+on:
+  schedule:
+    # Minden nap 07:00 UTC (ez nyáron 09:00 magyar idő)
+    - cron: "0 7 * * *"
+  workflow_dispatch: # Manuális indítás lehetősége
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kód letöltése
+        uses: actions/checkout@v3
+
+      - name: Python telepítése
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Könyvtárak telepítése
+        run: |
+          pip install --upgrade pip
+          pip install yahoo_fin pandas requests_html smtplib email-validator
+
+      - name: Script futtatása
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: |
+          python Reszvenygyertyajelek.py
+
+
