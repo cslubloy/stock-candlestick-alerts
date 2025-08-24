@@ -21,7 +21,7 @@ jobs:
       - name: Könyvtárak telepítése
         run: |
           pip install --upgrade pip
-          pip install yahoo_fin pandas requests_html smtplib email-validator
+          pip install yahoo_fin pandas requests_html email-validator
 
       - name: Script futtatása
         env:
