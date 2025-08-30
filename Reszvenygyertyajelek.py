@@ -8,7 +8,7 @@ import smtplib
 import datetime
 import calendar
 
-# --- Gyertyajelzések függvényei (ahogy korábban definiáltad) ---
+# --- Gyertyajelzések függvényei ---
 
 def bullish_engulfing(df):
     body = df['Close'] - df['Open']
@@ -102,17 +102,16 @@ def bullish_kicker(df):
     )
     return condition.fillna(False)
 
-# --- Részvénylista lekérése ---
+# --- Részvénylista beolvasása symbols.csv-ból ---
 
-def get_nyse_nasdaq_symbols():
-    nasdaq_url = 'https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt'
-    nyse_url = 'https://ftp.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt'
-    nasdaq_df = pd.read_csv(nasdaq_url, sep='|')
-    nyse_df = pd.read_csv(nyse_url, sep='|')
-    nasdaq_symbols = nasdaq_df['Symbol'].tolist()
-    nyse_symbols = nyse_df[nyse_df['Exchange'] == 'N']['ACT Symbol'].tolist()
-    all_symbols = [sym for sym in (nasdaq_symbols + nyse_symbols) if sym.isalnum()]
-    return all_symbols
+def get_symbols_from_csv(filename="symbols.csv"):
+    try:
+        df = pd.read_csv(filename, header=None)
+        symbols = df[0].dropna().astype(str).tolist()
+        return symbols
+    except Exception as e:
+        print(f"Hiba a {filename} beolvasásakor: {e}")
+        return []
 
 # --- Gyertyajelzés vizsgálat ---
 
@@ -168,8 +167,8 @@ def main():
         return
 
     timeframe = '1wk' if run_weekly else '1mo'
-    symbols = get_nyse_nasdaq_symbols()
-    print(f"{len(symbols)} részvény lekérve, elemzés indul...")
+    symbols = get_symbols_from_csv("symbols.csv")
+    print(f"{len(symbols)} részvény beolvasva a symbols.csv fájlból, elemzés indul...")
 
     all_signals = {}
     for sym in symbols:
@@ -194,16 +193,14 @@ def main():
     # Email küldés
     EMAIL_USER = os.getenv("EMAIL_USER")
     EMAIL_PASS = os.getenv("EMAIL_PASS")
-    TO_EMAIL = EMAIL_USER  # saját emailre küldjük
+    TO_EMAIL = EMAIL_USER
 
     subject = f"Részvény gyertyajelzések - {timeframe} - {now.strftime('%Y-%m-%d %H:%M UTC')}"
-    body = f"Csatolva a jelek listája a {timeframe} időszakra."
-
-    # Emailhez csatolás MIMEText-el egyszerű szövegként, vagy csatolt fájlként bonyolultabb
-    # Egyszerűen itt csak a testbe írjuk a jelzéseket:
-    body += "\n\n" + df_signals.to_string(index=False)
+    body = f"Csatolva a jelek listája a {timeframe} időszakra.\n\n" + df_signals.to_string(index=False)
 
     send_email(subject, body, TO_EMAIL, EMAIL_USER, EMAIL_PASS)
 
 if __name__ == "__main__":
     main()
+
+
