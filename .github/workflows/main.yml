@@ -21,7 +21,7 @@ jobs:
       - name: Könyvtárak telepítése
         run: |
           pip install --upgrade pip
-          pip install yahoo_fin pandas requests_html
+          pip install yahoo_fin pandas
 
       - name: Script futtatása
         env:
@@ -29,5 +29,3 @@ jobs:
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         run: |
           python Reszvenygyertyajelek.py
-
-
