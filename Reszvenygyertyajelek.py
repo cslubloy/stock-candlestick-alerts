@@ -106,7 +106,7 @@ def bullish_kicker(df):
 
 def get_symbols_from_csv(filename="symbols.csv"):
     try:
-        df = pd.read_csv(filename, header=None)
+        df = pd.read_csv(filename, header=None, sep=';')  # <-- itt a sep=';'
         symbols = df[0].dropna().astype(str).tolist()
         return symbols
     except Exception as e:
@@ -205,6 +205,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
