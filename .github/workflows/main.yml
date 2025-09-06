@@ -2,8 +2,10 @@ name: Reszvény gyertyajelző
 
 on:
   schedule:
-    # Minden nap 21:10 UTC (ez nyáron 23:10 magyar idő)
-    - cron: "10 21 * * *"
+    # Minden szombaton 03:00 UTC (péntek utáni hetes gyertya)
+    - cron: "0 3 * * 6"
+    # Minden hónap első napján 03:00 UTC (havi gyertya)
+    - cron: "0 3 1 * *"
   workflow_dispatch: # Manuális indítás lehetősége
 
 jobs:
