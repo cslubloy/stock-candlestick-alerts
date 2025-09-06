@@ -158,9 +158,12 @@ def send_email(subject, body, to_email, from_email, app_password):
 
 def main():
     now = datetime.datetime.utcnow()
-    run_weekly = (now.weekday() == 4 and now.hour >= 23)  # péntek 23:00 után
-    last_day = calendar.monthrange(now.year, now.month)[1]
-    run_monthly = (now.day == last_day and now.hour >= 23)  # hó utolsó napja 23:00 után
+    
+    # Heti futtatás: péntek után a következő nap hajnal 3 órakor
+    run_weekly = (now.weekday() == 5 and now.hour >= 3)
+    
+    # Havi futtatás: az előző hónap utolsó napja után a következő hónap 1-je hajnal 3 órakor
+    run_monthly = (now.day == 1 and now.hour >= 3)
 
     if not run_weekly and not run_monthly:
         print("Nem futunk, nem megfelelő időpont.")
@@ -202,5 +205,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
