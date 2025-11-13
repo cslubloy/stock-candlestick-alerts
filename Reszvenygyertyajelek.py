@@ -128,10 +128,6 @@ def send_email(subject, body, to_email, from_email, app_password, attachment_pat
 # --- Fő futás ---
 def main():
     now = datetime.datetime.utcnow()
-    # csak szombat 20:00 UTC után fusson
-    if not (now.weekday() == 5 and now.hour >= 20):
-        print("Nem megfelelő időpont, nem fut a script.")
-        return
 
     symbols = get_symbols("symbols.csv")
     all_signals = []
