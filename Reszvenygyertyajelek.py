@@ -1,150 +1,120 @@
 import os
-from yahoo_fin import stock_info as si
+import datetime
 import pandas as pd
-import numpy as np
+import yfinance as yf
+import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import smtplib
-import datetime
-import calendar
 
-# --- Gyertyajelzések függvényei ---
+# --- Bullish minták felismerése ---
 
 def bullish_engulfing(df):
-    body = df['Close'] - df['Open']
-    body_prev = body.shift(1)
-    bodytop = df[['Open', 'Close']].max(axis=1)
-    bodytop_prev = bodytop.shift(1)
-    bodybottom = df[['Open', 'Close']].min(axis=1)
-    bodybottom_prev = bodybottom.shift(1)
-    length = df['High'] - df['Low']
-    abody = body.abs()
-    ratio = abody / length
-    longcandle = (ratio > 0.6)
-    condition = (
-        (body_prev < 0) &
-        (body > 0) &
-        (bodybottom < bodybottom_prev) &
-        (bodytop > bodytop_prev) &
-        longcandle
-    )
-    return condition.fillna(False)
+    prev, last = df.iloc[-2], df.iloc[-1]
+    open_prev, close_prev = prev['Open'], prev['Close']
+    open_last, close_last = last['Open'], last['Close']
+    high_last, low_last = last['High'], last['Low']
+
+    body_prev = close_prev - open_prev
+    body_last = close_last - open_last
+    bodytop_prev = max(open_prev, close_prev)
+    bodytop_last = max(open_last, close_last)
+    bodybottom_prev = min(open_prev, close_prev)
+    bodybottom_last = min(open_last, close_last)
+
+    abody_last = abs(body_last)
+    length_last = high_last - low_last
+    longcandle = (abody_last / length_last) > 0.6 if length_last != 0 else False
+
+    return (body_prev < 0) and (body_last > 0) and \
+           (bodybottom_last < bodybottom_prev) and \
+           (bodytop_last > bodytop_prev) and longcandle
+
 
 def piercing_line(df):
-    body = df['Close'] - df['Open']
-    body_prev = body.shift(1)
-    bodytop = df[['Open', 'Close']].max(axis=1)
-    bodytop_prev = bodytop.shift(1)
-    bodybottom = df[['Open', 'Close']].min(axis=1)
-    bodybottom_prev = bodybottom.shift(1)
-    length = df['High'] - df['Low']
-    abody = body.abs()
-    ratio = abody / length
-    longcandle = (ratio > 0.6)
-    middle_prev = (df['Open'].shift(1) + df['Close'].shift(1)) / 2
-    condition = (
-        (body_prev < 0) &
-        (body > 0) &
-        (longcandle.shift(1)) &
-        longcandle &
-        (df['Open'] < df['Low'].shift(1)) &
-        (df['Close'] > middle_prev) &
-        (df['Close'] < df['Open'].shift(1))
-    )
-    return condition.fillna(False)
+    prev, last = df.iloc[-2], df.iloc[-1]
+    open_prev, close_prev = prev['Open'], prev['Close']
+    open_last, close_last = last['Open'], last['Close']
+    high_prev, low_prev = prev['High'], prev['Low']
+    high_last, low_last = last['High'], last['Low']
+
+    body_prev = close_prev - open_prev
+    body_last = close_last - open_last
+    abody_prev, abody_last = abs(body_prev), abs(body_last)
+    long_prev = (abody_prev / (high_prev - low_prev)) > 0.6 if (high_prev - low_prev) != 0 else False
+    long_last = (abody_last / (high_last - low_last)) > 0.6 if (high_last - low_last) != 0 else False
+    middle_prev = (open_prev + close_prev) / 2
+
+    return (body_prev < 0) and (body_last > 0) and long_prev and long_last and \
+           (open_last < low_prev) and (close_last > middle_prev) and (close_last < open_prev)
+
 
 def bullish_pin_bar(df):
-    length = df['High'] - df['Low']
-    shadowbottom = df[['Open', 'Close']].min(axis=1) - df['Low']
-    condition = (df['Low'] < df['Low'].shift(1)) & (shadowbottom > 0.67 * length)
-    return condition.fillna(False)
+    prev, last = df.iloc[-2], df.iloc[-1]
+    open_last, close_last = last['Open'], last['Close']
+    high_last, low_last = last['High'], last['Low']
+    low_prev = prev['Low']
+
+    length_last = high_last - low_last
+    shadow_bottom = min(open_last, close_last) - low_last
+    return (low_last < low_prev) and (shadow_bottom > 0.67 * length_last)
+
 
 def morning_star(df):
-    body = df['Close'] - df['Open']
-    body_prev1 = body.shift(1)
-    body_prev2 = body.shift(2)
-    abody = body.abs()
-    abody_prev1 = abody.shift(1)
-    abody_prev2 = abody.shift(2)
-    length = df['High'] - df['Low']
-    ratio = abody / length
-    condition = (
-        (body_prev2 < 0) &
-        (body > 0) &
-        (abody_prev2 > 0.6 * length.shift(2)) &
-        (df['Open'].shift(1) < df['Close'].shift(2)) &
-        (df['Close'].shift(1) < df['Close'].shift(2)) &
-        (df['Open'] > df['Open'].shift(1)) &
-        (df['Open'] > df['Close'].shift(1)) &
-        (ratio.shift(1) < 0.3) &
-        (abody_prev1 < abody_prev2) &
-        (abody_prev1 < abody) &
-        (df['Low'].shift(1) < df['Low']) &
-        (df['Low'].shift(1) < df['Low'].shift(2)) &
-        (df['High'].shift(1) < df['Open'].shift(2)) &
-        (df['High'].shift(1) < df['Close'])
-    )
-    return condition.fillna(False)
+    c2, c1, c0 = df.iloc[-3], df.iloc[-2], df.iloc[-1]
+    open2, close2 = c2['Open'], c2['Close']
+    open1, close1 = c1['Open'], c1['Close']
+    open0, close0 = c0['Open'], c0['Close']
+    high2, low2 = c2['High'], c2['Low']
+    high1, low1 = c1['High'], c1['Low']
+    high0, low0 = c0['High'], c0['Low']
+
+    body2, body1, body0 = close2 - open2, close1 - open1, close0 - open0
+    abody2, abody1, abody0 = abs(body2), abs(body1), abs(body0)
+    ratio1 = abody1 / (high1 - low1) if (high1 - low1) != 0 else 0
+
+    return (body2 < 0) and (body0 > 0) and (abody2 > 0.6 * (high2 - low2)) and \
+           (close1 < close2) and (abody1 < abody2) and (abody1 < abody0) and (ratio1 < 0.3)
+
 
 def bullish_kicker(df):
-    body = df['Close'] - df['Open']
-    body_prev = body.shift(1)
-    length = df['High'] - df['Low']
-    abody = body.abs()
-    ratio = abody / length
-    longcandle = (ratio > 0.6)
-    condition = (
-        (body_prev < 0) &
-        (body > 0) &
-        (longcandle.shift(1)) &
-        longcandle &
-        (df['Open'].shift(1) < df['Open'])
-    )
-    return condition.fillna(False)
+    prev, last = df.iloc[-2], df.iloc[-1]
+    open_prev, close_prev = prev['Open'], prev['Close']
+    open_last, close_last = last['Open'], last['Close']
+    high_last, low_last = last['High'], last['Low']
 
-# --- Részvénylista beolvasása symbols.csv-ból ---
+    body_prev = close_prev - open_prev
+    body_last = close_last - open_last
+    length_last = high_last - low_last
+    ratio = abs(body_last) / length_last if length_last != 0 else 0
+    longcandle = ratio > 0.6
 
-def get_symbols_from_csv(filename="symbols.csv"):
+    return (body_prev < 0) and (body_last > 0) and longcandle and (open_prev < open_last)
+
+
+# --- Symbol lista beolvasása ---
+def get_symbols(filename="symbols.csv"):
     try:
-        df = pd.read_csv(filename, header=None, sep=';')  # <-- itt a sep=';'
-        symbols = df[0].dropna().astype(str).tolist()
-        return symbols
+        df = pd.read_csv(filename, header=None, sep=';')
+        return df[0].dropna().astype(str).tolist()
     except Exception as e:
         print(f"Hiba a {filename} beolvasásakor: {e}")
         return []
 
-# --- Gyertyajelzés vizsgálat ---
-
-def check_candlestick_patterns(symbol, timeframe='1wk'):
-    try:
-        df = si.get_data(symbol, interval=timeframe)
-        if df.empty:
-            return None
-        df_recent = df.tail(5)
-        signals = {}
-        if bullish_engulfing(df_recent).iloc[-1]:
-            signals['Bullish Engulfing'] = True
-        if piercing_line(df_recent).iloc[-1]:
-            signals['Piercing Line'] = True
-        if bullish_pin_bar(df_recent).iloc[-1]:
-            signals['Bullish Pin Bar'] = True
-        if morning_star(df_recent).iloc[-1]:
-            signals['Morning Star'] = True
-        if bullish_kicker(df_recent).iloc[-1]:
-            signals['Bullish Kicker'] = True
-        return signals if signals else None
-    except Exception as e:
-        print(f"Hiba a {symbol} feldolgozásakor: {e}")
-        return None
 
 # --- Email küldés ---
-
-def send_email(subject, body, to_email, from_email, app_password):
+def send_email(subject, body, to_email, from_email, app_password, attachment_path=None):
     msg = MIMEMultipart()
     msg['From'] = from_email
     msg['To'] = to_email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
+
+    if attachment_path and os.path.exists(attachment_path):
+        with open(attachment_path, 'rb') as f:
+            attach = MIMEText(f.read(), 'base64', 'utf-8')
+            attach.add_header('Content-Disposition', 'attachment', filename=os.path.basename(attachment_path))
+            msg.attach(attach)
+
     try:
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(from_email, app_password)
@@ -154,58 +124,53 @@ def send_email(subject, body, to_email, from_email, app_password):
     except Exception as e:
         print(f"Email küldési hiba: {e}")
 
-# --- Főfüggvény ---
 
+# --- Fő futás ---
 def main():
     now = datetime.datetime.utcnow()
-    
-    # Heti futtatás: péntek után a következő nap hajnal 3 órakor
-    run_weekly = (now.weekday() == 5 and now.hour >= 3)
-    
-    # Havi futtatás: az előző hónap utolsó napja után a következő hónap 1-je hajnal 3 órakor
-    run_monthly = (now.day == 1 and now.hour >= 3)
-
-    if not run_weekly and not run_monthly:
-        print("Nem futunk, nem megfelelő időpont.")
+    # csak szombat 20:00 UTC után fusson
+    if not (now.weekday() == 5 and now.hour >= 20):
+        print("Nem megfelelő időpont, nem fut a script.")
         return
 
-    timeframe = '1wk' if run_weekly else '1mo'
-    symbols = get_symbols_from_csv("symbols.csv")
-    print(f"{len(symbols)} részvény beolvasva a symbols.csv fájlból, elemzés indul...")
+    symbols = get_symbols("symbols.csv")
+    all_signals = []
 
-    all_signals = {}
-    for sym in symbols:
-        signals = check_candlestick_patterns(sym, timeframe)
-        if signals:
-            all_signals[sym] = signals
+    for symbol in symbols:
+        try:
+            df = yf.download(symbol, period="3mo", interval="1wk")
+            if df.empty or len(df) < 3:
+                continue
 
-    if not all_signals:
-        print("Nem találtunk gyertyajelzést a megadott időszakra.")
-        return
+            if bullish_engulfing(df):
+                all_signals.append({'Symbol': symbol, 'Signal': 'Bullish Engulfing'})
+            if piercing_line(df):
+                all_signals.append({'Symbol': symbol, 'Signal': 'Piercing Line'})
+            if bullish_pin_bar(df):
+                all_signals.append({'Symbol': symbol, 'Signal': 'Bullish Pin Bar'})
+            if morning_star(df):
+                all_signals.append({'Symbol': symbol, 'Signal': 'Morning Star'})
+            if bullish_kicker(df):
+                all_signals.append({'Symbol': symbol, 'Signal': 'Bullish Kicker'})
 
-    # CSV generálás
-    rows = []
-    for sym, sigs in all_signals.items():
-        for sig_name in sigs.keys():
-            rows.append({'Symbol': sym, 'Signal': sig_name})
-    df_signals = pd.DataFrame(rows)
-    csv_filename = 'signals.csv'
-    df_signals.to_csv(csv_filename, index=False)
-    print(f"Jelek CSV fájl mentve: {csv_filename}")
+        except Exception as e:
+            print(f"Hiba a {symbol} feldolgozásakor: {e}")
 
-    # Email küldés
-    EMAIL_USER = os.getenv("EMAIL_USER")
-    EMAIL_PASS = os.getenv("EMAIL_PASS")
-    TO_EMAIL = EMAIL_USER
+    if all_signals:
+        df_signals = pd.DataFrame(all_signals)
+        csv_name = "signalsw1_full_v1.csv"
+        df_signals.to_csv(csv_name, index=False)
+        print(f"Signals mentve: {csv_name}")
 
-    subject = f"Részvény gyertyajelzések - {timeframe} - {now.strftime('%Y-%m-%d %H:%M UTC')}"
-    body = f"Csatolva a jelek listája a {timeframe} időszakra.\n\n" + df_signals.to_string(index=False)
+        EMAIL_USER = os.getenv("EMAIL_USER")
+        EMAIL_PASS = os.getenv("EMAIL_PASS")
+        TO_EMAIL = EMAIL_USER
+        subject = f"Bullish gyertyajelek heti jelentés - {now:%Y-%m-%d}"
+        body = "Csatolva a heti bullish jelek listája."
+        send_email(subject, body, TO_EMAIL, EMAIL_USER, EMAIL_PASS, csv_name)
+    else:
+        print("Nem találtunk bullish gyertyajeleket.")
 
-    send_email(subject, body, TO_EMAIL, EMAIL_USER, EMAIL_PASS)
 
 if __name__ == "__main__":
     main()
-
-
-
-
