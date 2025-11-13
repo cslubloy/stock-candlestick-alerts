@@ -1,33 +1,27 @@
-name: Reszvény gyertyajelző
+name: Weekly Bullish Signals
 
 on:
   schedule:
-    # Minden szombaton 03:00 UTC (péntek utáni hetes gyertya)
-    - cron: "0 3 * * 6"
-    # Minden hónap első napján 03:00 UTC (havi gyertya)
-    - cron: "0 3 1 * *"
-  workflow_dispatch: # Manuális indítás lehetősége
+    - cron: "0 20 * * 6"  # Szombat 20:00 UTC
+  workflow_dispatch:  # manuális indítás is engedélyezett
 
 jobs:
-  run-script:
+  run:
     runs-on: ubuntu-latest
     steps:
-      - name: Kód letöltése
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Python telepítése
-        uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.12'
 
-      - name: Könyvtárak telepítése
-        run: |
-          pip install --upgrade pip
-          pip install yahoo_fin pandas
+      - name: Install dependencies
+        run: pip install yfinance pandas
 
-      - name: Script futtatása
+      - name: Run signal script
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-        run: |
-          python Reszvenygyertyajelek.py
+        run: python Reszvenygyertyajelek.py
